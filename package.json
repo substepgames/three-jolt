@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "start": "vite",
+        "debug": "DEBUG=1 vite",
         "build": "tsgo && vite build"
     },
     "dependencies": {

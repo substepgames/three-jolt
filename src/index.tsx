@@ -28,7 +28,7 @@ import {
 } from 'three'
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
-import { dt, substeps } from './constant'
+import { debugMode, dt, substeps } from './constant'
 import './index.css'
 import { bodyInterface, createBody, initJolt, jolt, joltInterface, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
 
@@ -240,7 +240,9 @@ const App = () => {
 
         joltInterface.Step(dt, substeps)
 
-        csm.update()
+        if (!debugMode) {
+            csm.update()
+        }
         renderer.render(scene, camera)
     }
 
