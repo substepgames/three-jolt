@@ -7,6 +7,7 @@ import {
     ACESFilmicToneMapping,
     AmbientLight,
     BoxGeometry,
+    Color,
     DirectionalLight,
     EquirectangularReflectionMapping,
     LineBasicMaterial,
@@ -53,13 +54,15 @@ const material = {
 
 const App = () => {
     const [deltaRender, setDeltaRender] = createSignal(0)
+    const [ballCount, setBallCount] = createSignal(0)
+    const ballCountLimit = 128
 
     onMount(async () => {
         await initJolt()
         texture.grid.copy(new TextureLoader().load('texture/grid.png'))
         texture.grid.wrapS = RepeatWrapping
         texture.grid.wrapT = RepeatWrapping
-        texture.grid.repeat.set(32, 32)
+        texture.grid.repeat.set(8, 8)
 
         renderer = new WebGLRenderer({ canvas, antialias: true })
         renderer.shadowMap.enabled = true
@@ -92,16 +95,19 @@ const App = () => {
             camera: camera
         })
 
-        // TODO: init scene
-        const floor = new Mesh(new BoxGeometry(10, 0.1, 10), material.default)
-        const floorRb = createBody(floor, new jolt.BoxShape(vec3ToJolt(new Vector3(10, 0.1, 10))), false)
-        objects.push({ object: floor, id: floorRb.GetID() })
-
-        const ball = new Mesh(new SphereGeometry(0.1), material.default)
-        ball.position.copy(new Vector3(0, 1, 0))
-        const ballRb = createBody(ball, new jolt.SphereShape(0.1), true)
-        ballRb.SetRestitution(1)
-        objects.push({ object: ball, id: ballRb.GetID() })
+        // floor + 4 walls
+        ;[
+            { box: new Vector3(5, 0.1, 5), pos: new Vector3(0, 0, 0) },
+            { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, 2.5) },
+            { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, -2.5) },
+            { box: new Vector3(0.1, 1, 5), pos: new Vector3(2.5, 0.5, 0) },
+            { box: new Vector3(0.1, 1, 5), pos: new Vector3(-2.5, 0.5, 0) }
+        ].forEach(({ box, pos }) => {
+            const wall = new Mesh(new BoxGeometry(...box.toArray()), material.default)
+            wall.position.copy(pos)
+            const wallRb = createBody(wall, new jolt.BoxShape(vec3ToJolt(box)), false)
+            objects.push({ object: wall, id: wallRb.GetID() })
+        })
 
         scene.add(camera)
 
@@ -138,17 +144,46 @@ const App = () => {
 
     const updateInput = () => {}
 
+    const addBall = (pos: Vector3) => {
+        const ball = new Mesh(
+            new SphereGeometry(0.1),
+            new MeshStandardMaterial({ color: new Color().setHSL(Math.random(), 0.5, 0.5), map: texture.grid })
+        )
+        ball.position.copy(pos)
+
+        ball.traverse(c => {
+            c.castShadow = true
+            c.receiveShadow = true
+            c.visible = !c.name.startsWith('c_')
+            if (c instanceof Mesh) {
+                csm.setupMaterial(c.material)
+            }
+        })
+        scene.add(ball)
+
+        const ballRb = createBody(ball, new jolt.SphereShape(0.1), true)
+        ballRb.SetRestitution(0.8)
+        objects.push({ object: ball, id: ballRb.GetID() })
+    }
+
     const updateScene = () => {
         for (const { object, id: handle } of objects) {
             if (handle === undefined) continue
             object.position.copy(vec3ToThree(bodyInterface.GetPosition(handle)))
             object.quaternion.copy(quatToThree(bodyInterface.GetRotation(handle)))
         }
+
+        if (ballCount() < ballCountLimit) {
+            addBall(
+                new Vector3(0, 2, 0).add(new Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).multiplyScalar(2))
+            )
+            setBallCount(ballCount() + 1)
+        }
     }
 
     const updateCamera = () => {
-        camera.position.copy(new Vector3(-0.5, 1, 0.5))
-        camera.lookAt(new Vector3(0, 0.5, 0))
+        camera.position.copy(new Vector3(2, 2, 0.5))
+        camera.lookAt(new Vector3(0, 0, 0))
     }
 
     const loop = () => {
@@ -171,6 +206,7 @@ const App = () => {
                 <div class="debug">
                     <span>delta</span>
                     <span>{`render  ${deltaRender().toFixed(1)}`}</span>
+                    <span>{`balls   ${ballCount()}`}</span>
                 </div>
             </div>
             <canvas ref={canvas!} />
