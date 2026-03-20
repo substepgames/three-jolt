@@ -6,6 +6,7 @@ import { render } from 'solid-js/web'
 import {
     ACESFilmicToneMapping,
     AmbientLight,
+    BoxGeometry,
     BufferGeometry,
     DirectionalLight,
     EquirectangularReflectionMapping,
@@ -14,27 +15,22 @@ import {
     Mesh,
     MeshStandardMaterial,
     PerspectiveCamera,
-    PlaneGeometry,
-    Quaternion,
     Scene,
+    SphereGeometry,
     Vector3,
     WebGLRenderer
 } from 'three'
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
 import { quatToJolt, quatToThree, vec3ToJoltR as rVec3ToJolt, vec3ToJolt, vec3ToThree } from './compat'
+import { dt, substeps } from './constant'
 import './index.css'
 import { bodyInterface, initJolt, jolt, joltInterface, layer } from './jolt'
 
 type RbObject = {
     object: Mesh
-    handle?: Jolt.BodyID
+    id?: Jolt.BodyID
 }
-
-const gravity = new Vector3(0, -9.8, 0)
-const fps = 60
-const substeps = 2
-const dt = 1 / (substeps * fps)
 
 let canvas!: HTMLCanvasElement
 let gl!: WebGL2RenderingContext
@@ -93,17 +89,33 @@ const App = () => {
         })
 
         // TODO: init scene
-        const floor = new Mesh(new PlaneGeometry(10, 10), material.default)
+        const floor = new Mesh(new BoxGeometry(10, 0.1, 10), material.default)
         const floorRb = bodyInterface.CreateBody(
             new jolt.BodyCreationSettings(
-                new jolt.BoxShape(vec3ToJolt(new Vector3(10, 10, 0.1))),
-                rVec3ToJolt(new Vector3()),
-                quatToJolt(new Quaternion()),
+                new jolt.BoxShape(vec3ToJolt(new Vector3(10, 0.1, 10))),
+                rVec3ToJolt(floor.position),
+                quatToJolt(floor.quaternion),
                 jolt.EMotionType_Static,
                 layer.nonMoving
             )
         )
-        objects.push({ object: floor, handle: floorRb.GetID() })
+        bodyInterface.AddBody(floorRb.GetID(), jolt.EActivation_Activate)
+        objects.push({ object: floor, id: floorRb.GetID() })
+
+        const ball = new Mesh(new SphereGeometry(0.1), material.default)
+        ball.position.copy(new Vector3(0, 1, 0))
+        const ballRb = bodyInterface.CreateBody(
+            new jolt.BodyCreationSettings(
+                new jolt.SphereShape(0.1),
+                rVec3ToJolt(ball.position),
+                quatToJolt(ball.quaternion),
+                jolt.EMotionType_Dynamic,
+                layer.movinfg
+            )
+        )
+        ballRb.SetRestitution(1)
+        bodyInterface.AddBody(ballRb.GetID(), jolt.EActivation_Activate)
+        objects.push({ object: ball, id: ballRb.GetID() })
 
         scene.add(camera)
 
@@ -118,6 +130,7 @@ const App = () => {
             })
         )
         scene.add(...objects.map(o => o.object))
+        console.debug(objects)
 
         scene.add(mesh.debug)
 
@@ -141,7 +154,7 @@ const App = () => {
     const updateInput = () => {}
 
     const updateScene = () => {
-        for (const { object, handle } of objects) {
+        for (const { object, id: handle } of objects) {
             if (handle === undefined) continue
             object.position.copy(vec3ToThree(bodyInterface.GetPosition(handle)))
             object.quaternion.copy(quatToThree(bodyInterface.GetRotation(handle)))
@@ -149,7 +162,8 @@ const App = () => {
     }
 
     const updateCamera = () => {
-        camera.position.copy(new Vector3(0, 1, 0))
+        camera.position.copy(new Vector3(0, 1, 1))
+        camera.lookAt(new Vector3(0, 0.5, 0))
     }
 
     const loop = () => {
@@ -160,9 +174,7 @@ const App = () => {
         updateCamera()
         updateScene()
 
-        for (let i = 0; i < substeps; i++) {
-            joltInterface.Step(dt, 1)
-        }
+        joltInterface.Step(dt, substeps)
 
         csm.update()
         renderer.render(scene, camera)

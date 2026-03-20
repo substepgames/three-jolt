@@ -1,4 +1,6 @@
 import type Jolt from 'jolt-physics'
+import { vec3ToJolt } from './compat'
+import { gravity } from './constant'
 
 export let jolt: typeof Jolt
 export let joltInterface!: Jolt.JoltInterface
@@ -41,6 +43,7 @@ export const initJolt = async () => {
     joltInterface = new jolt.JoltInterface(settings)
 
     physicsSystem = joltInterface.GetPhysicsSystem()
+    physicsSystem.SetGravity(vec3ToJolt(gravity))
     bodyInterface = physicsSystem.GetBodyInterface()
 
     console.debug('jolt initialized', jolt)
