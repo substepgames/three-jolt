@@ -197,12 +197,12 @@ const App = () => {
             if (ballCount() === ballCountLimit - 1) {
                 // finish him!
                 const boxBounds = new Vector3(1, 1, 1)
-                const megaBox = new Mesh(new BoxGeometry(...boxBounds), balls.material)
+                const megaBox = new Mesh(new BoxGeometry(...boxBounds), material.default)
                 megaBox.position.copy(new Vector3(0, 10, 0))
                 const megaBoxShape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
                 megaBoxShape.SetDensity(10e3)
                 const megaBoxRb = createBody(megaBox, megaBoxShape, true)
-                megaBoxRb.SetRestitution(0.9)
+                megaBoxRb.SetRestitution(0.2)
                 objects.push({ object: megaBox, id: megaBoxRb.GetID() })
                 sceneAdd(megaBox)
             }
