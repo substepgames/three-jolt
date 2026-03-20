@@ -30,7 +30,7 @@ import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
 import { debugMode, dt, substeps } from './constant'
 import './index.css'
-import { bodyInterface, createBody, initJolt, jolt, joltInterface, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
+import { bodyInterface, createBody, initJolt, jolt, joltInterface, physicsSystem, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
 
 type RbObject = {
     object: Mesh
@@ -62,9 +62,10 @@ const material = {
 
 const App = () => {
     const [deltaRender, setDeltaRender] = createSignal(0)
+    const [deltaStep, setDeltaStep] = createSignal(0)
     const [ballCount, setBallCount] = createSignal(0)
 
-    const ballCountLimit = 2048
+    const ballCountLimit = 128
     let balls!: InstancedMesh
 
     onMount(async () => {
@@ -180,6 +181,7 @@ const App = () => {
 
         const ballRb = createBody(ball, new jolt.SphereShape(0.1), true)
         ballRb.SetRestitution(0.8)
+        ballRb.GetMotionProperties().SetLinearDamping(1)
 
         objects.push({ object: balls, index, id: ballRb.GetID() })
         setBallCount(ballCount() + 1)
@@ -238,7 +240,9 @@ const App = () => {
         updateCamera()
         updateScene()
 
+        const stepStart = performance.now()
         joltInterface.Step(dt, substeps)
+        setDeltaStep(performance.now() - stepStart)
 
         if (!debugMode) {
             csm.update()
@@ -252,6 +256,7 @@ const App = () => {
                 <div class="debug">
                     <span>delta</span>
                     <span>{`render  ${deltaRender().toFixed(1)}`}</span>
+                    <span>{`physics ${deltaStep().toFixed(1)}`}</span>
                     <span>{`balls   ${ballCount()}`}</span>
                 </div>
             </div>
