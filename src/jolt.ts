@@ -1,5 +1,6 @@
 import type Jolt from 'jolt-physics'
-import { vec3ToJolt } from './compat'
+import * as three from 'three'
+import { Object3D } from 'three'
 import { gravity } from './constant'
 
 export let jolt: typeof Jolt
@@ -15,6 +16,13 @@ export const layer = {
 }
 
 export const objectLayerCount = 3
+
+export const vec3ToThree = (v: Jolt.Vec3 | Jolt.RVec3): three.Vector3 => new three.Vector3(v.GetX(), v.GetY(), v.GetZ())
+export const vec3ToJolt = (v: three.Vector3): Jolt.Vec3 => new jolt.Vec3(v.x, v.y, v.z)
+export const rVec3ToJolt = (v: three.Vector3): Jolt.RVec3 => new jolt.RVec3(v.x, v.y, v.z)
+export const quatToThree = (q: Jolt.Quat): three.Quaternion =>
+    new three.Quaternion(q.GetX(), q.GetY(), q.GetZ(), q.GetW())
+export const quatToJolt = (q: three.Quaternion): Jolt.Quat => new jolt.Quat(q.x, q.y, q.z, q.w)
 
 export const initJolt = async () => {
     const initJolt = (await import('jolt-physics/wasm')).default
@@ -47,4 +55,18 @@ export const initJolt = async () => {
     bodyInterface = physicsSystem.GetBodyInterface()
 
     console.debug('jolt initialized', jolt)
+}
+
+export const createBody = (object: Object3D, shape: Jolt.Shape): Jolt.Body => {
+    const rb = bodyInterface.CreateBody(
+        new jolt.BodyCreationSettings(
+            shape,
+            rVec3ToJolt(object.position),
+            quatToJolt(object.quaternion),
+            jolt.EMotionType_Static,
+            layer.nonMoving
+        )
+    )
+    bodyInterface.AddBody(rb.GetID(), jolt.EActivation_Activate)
+    return rb
 }

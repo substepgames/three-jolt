@@ -15,17 +15,30 @@ import {
     Mesh,
     MeshStandardMaterial,
     PerspectiveCamera,
+    RepeatWrapping,
     Scene,
     SphereGeometry,
+    Texture,
+    TextureLoader,
     Vector3,
     WebGLRenderer
 } from 'three'
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
-import { quatToJolt, quatToThree, vec3ToJoltR as rVec3ToJolt, vec3ToJolt, vec3ToThree } from './compat'
 import { dt, substeps } from './constant'
 import './index.css'
-import { bodyInterface, initJolt, jolt, joltInterface, layer } from './jolt'
+import {
+    bodyInterface,
+    initJolt,
+    jolt,
+    joltInterface,
+    layer,
+    quatToJolt,
+    quatToThree,
+    rVec3ToJolt,
+    vec3ToJolt,
+    vec3ToThree
+} from './jolt'
 
 type RbObject = {
     object: Mesh
@@ -43,8 +56,11 @@ let frameStart: number | undefined = undefined
 const camera = new PerspectiveCamera(90, 1, 0.1, 100)
 let csm!: CSM.CSM
 
+const texture = {
+    grid: new Texture()
+}
 const material = {
-    default: new MeshStandardMaterial(),
+    default: new MeshStandardMaterial({ map: texture.grid }),
     line: new LineBasicMaterial({ vertexColors: true })
 }
 const mesh = {
@@ -57,11 +73,16 @@ const App = () => {
 
     onMount(async () => {
         await initJolt()
+        texture.grid.copy(new TextureLoader().load('texture/grid.png'))
+        texture.grid.wrapS = RepeatWrapping
+        texture.grid.wrapT = RepeatWrapping
+        texture.grid.repeat.set(32, 32)
 
         renderer = new WebGLRenderer({ canvas, antialias: true })
         renderer.shadowMap.enabled = true
         renderer.toneMapping = ACESFilmicToneMapping
         renderer.toneMappingExposure = 2
+        renderer.setPixelRatio(window.devicePixelRatio)
         gl = renderer.getContext() as WebGL2RenderingContext
 
         scene = new Scene()
@@ -147,6 +168,7 @@ const App = () => {
         camera.aspect = aspect
         camera.updateProjectionMatrix()
         renderer.setSize(window.innerWidth, window.innerHeight)
+        renderer.setPixelRatio(window.devicePixelRatio)
     }
 
     const onInput = (e: KeyboardEvent) => {}
@@ -162,7 +184,7 @@ const App = () => {
     }
 
     const updateCamera = () => {
-        camera.position.copy(new Vector3(0, 1, 1))
+        camera.position.copy(new Vector3(-0.5, 1, 0.5))
         camera.lookAt(new Vector3(0, 0.5, 0))
     }
 
