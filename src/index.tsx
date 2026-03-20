@@ -7,11 +7,9 @@ import {
     ACESFilmicToneMapping,
     AmbientLight,
     BoxGeometry,
-    BufferGeometry,
     DirectionalLight,
     EquirectangularReflectionMapping,
     LineBasicMaterial,
-    LineSegments,
     Mesh,
     MeshStandardMaterial,
     PerspectiveCamera,
@@ -27,18 +25,7 @@ import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
 import { dt, substeps } from './constant'
 import './index.css'
-import {
-    bodyInterface,
-    initJolt,
-    jolt,
-    joltInterface,
-    layer,
-    quatToJolt,
-    quatToThree,
-    rVec3ToJolt,
-    vec3ToJolt,
-    vec3ToThree
-} from './jolt'
+import { bodyInterface, createBody, initJolt, jolt, joltInterface, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
 
 type RbObject = {
     object: Mesh
@@ -63,10 +50,6 @@ const material = {
     default: new MeshStandardMaterial({ map: texture.grid }),
     line: new LineBasicMaterial({ vertexColors: true })
 }
-const mesh = {
-    debug: new LineSegments(new BufferGeometry(), material.line)
-}
-mesh.debug.visible = false
 
 const App = () => {
     const [deltaRender, setDeltaRender] = createSignal(0)
@@ -111,31 +94,13 @@ const App = () => {
 
         // TODO: init scene
         const floor = new Mesh(new BoxGeometry(10, 0.1, 10), material.default)
-        const floorRb = bodyInterface.CreateBody(
-            new jolt.BodyCreationSettings(
-                new jolt.BoxShape(vec3ToJolt(new Vector3(10, 0.1, 10))),
-                rVec3ToJolt(floor.position),
-                quatToJolt(floor.quaternion),
-                jolt.EMotionType_Static,
-                layer.nonMoving
-            )
-        )
-        bodyInterface.AddBody(floorRb.GetID(), jolt.EActivation_Activate)
+        const floorRb = createBody(floor, new jolt.BoxShape(vec3ToJolt(new Vector3(10, 0.1, 10))), false)
         objects.push({ object: floor, id: floorRb.GetID() })
 
         const ball = new Mesh(new SphereGeometry(0.1), material.default)
         ball.position.copy(new Vector3(0, 1, 0))
-        const ballRb = bodyInterface.CreateBody(
-            new jolt.BodyCreationSettings(
-                new jolt.SphereShape(0.1),
-                rVec3ToJolt(ball.position),
-                quatToJolt(ball.quaternion),
-                jolt.EMotionType_Dynamic,
-                layer.movinfg
-            )
-        )
+        const ballRb = createBody(ball, new jolt.SphereShape(0.1), true)
         ballRb.SetRestitution(1)
-        bodyInterface.AddBody(ballRb.GetID(), jolt.EActivation_Activate)
         objects.push({ object: ball, id: ballRb.GetID() })
 
         scene.add(camera)
@@ -152,8 +117,6 @@ const App = () => {
         )
         scene.add(...objects.map(o => o.object))
         console.debug(objects)
-
-        scene.add(mesh.debug)
 
         resize()
         window.addEventListener('resize', resize)

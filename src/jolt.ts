@@ -9,7 +9,7 @@ export let physicsSystem!: Jolt.PhysicsSystem
 export let bodyInterface!: Jolt.BodyInterface
 
 export const layer = {
-    movinfg: 0,
+    moving: 0,
     nonMoving: 1,
     kinematic: 2,
     rig: 3
@@ -29,15 +29,15 @@ export const initJolt = async () => {
     jolt = await initJolt()
 
     const objectFilter = new jolt.ObjectLayerPairFilterTable(objectLayerCount)
-    objectFilter.EnableCollision(layer.nonMoving, layer.movinfg)
-    objectFilter.EnableCollision(layer.movinfg, layer.movinfg)
+    objectFilter.EnableCollision(layer.nonMoving, layer.moving)
+    objectFilter.EnableCollision(layer.moving, layer.moving)
     objectFilter.DisableCollision(layer.nonMoving, layer.rig)
-    objectFilter.DisableCollision(layer.movinfg, layer.rig)
+    objectFilter.DisableCollision(layer.moving, layer.rig)
     objectFilter.DisableCollision(layer.rig, layer.rig)
 
     const bpInterface = new jolt.BroadPhaseLayerInterfaceTable(objectLayerCount, 3)
     bpInterface.MapObjectToBroadPhaseLayer(layer.nonMoving, new jolt.BroadPhaseLayer(1))
-    bpInterface.MapObjectToBroadPhaseLayer(layer.movinfg, new jolt.BroadPhaseLayer(0))
+    bpInterface.MapObjectToBroadPhaseLayer(layer.moving, new jolt.BroadPhaseLayer(0))
     bpInterface.MapObjectToBroadPhaseLayer(layer.rig, new jolt.BroadPhaseLayer(2))
     const settings = new jolt.JoltSettings()
     settings.mObjectLayerPairFilter = objectFilter
@@ -57,14 +57,14 @@ export const initJolt = async () => {
     console.debug('jolt initialized', jolt)
 }
 
-export const createBody = (object: Object3D, shape: Jolt.Shape): Jolt.Body => {
+export const createBody = (object: Object3D, shape: Jolt.Shape, dynamic: boolean): Jolt.Body => {
     const rb = bodyInterface.CreateBody(
         new jolt.BodyCreationSettings(
             shape,
             rVec3ToJolt(object.position),
             quatToJolt(object.quaternion),
-            jolt.EMotionType_Static,
-            layer.nonMoving
+            dynamic ? jolt.EMotionType_Dynamic : jolt.EMotionType_Static,
+            dynamic ? layer.moving : layer.nonMoving
         )
     )
     bodyInterface.AddBody(rb.GetID(), jolt.EActivation_Activate)
