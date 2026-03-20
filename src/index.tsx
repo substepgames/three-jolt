@@ -16,6 +16,7 @@ import {
     Matrix4,
     Mesh,
     MeshStandardMaterial,
+    Object3D,
     PerspectiveCamera,
     RepeatWrapping,
     Scene,
@@ -123,25 +124,17 @@ const App = () => {
             objects.push({ object: wall, id: wallRb.GetID() })
         })
 
-        balls = new InstancedMesh(new SphereGeometry(0.1), material.default, ballCountLimit)
+        balls = new InstancedMesh(
+            new SphereGeometry(0.1),
+            new MeshStandardMaterial({ map: texture.grid, roughness: 0 }),
+            ballCountLimit
+        )
         balls.instanceMatrix.setUsage(DynamicDrawUsage)
-        balls.castShadow = true
-        balls.receiveShadow = true
-        scene.add(balls)
+        sceneAdd(balls)
 
         scene.add(camera)
 
-        objects.forEach(o =>
-            o.object.traverse(c => {
-                c.castShadow = true
-                c.receiveShadow = true
-                c.visible = !c.name.startsWith('c_')
-                if (c instanceof Mesh) {
-                    csm.setupMaterial(c.material)
-                }
-            })
-        )
-        scene.add(...objects.map(o => o.object))
+        objects.map(o => sceneAdd(o.object))
         console.debug(objects)
 
         resize()
@@ -163,6 +156,18 @@ const App = () => {
     const onInput = (e: KeyboardEvent) => {}
 
     const updateInput = () => {}
+
+    const sceneAdd = (object: Object3D) => {
+        object.traverse(c => {
+            c.castShadow = true
+            c.receiveShadow = true
+            c.visible = !c.name.startsWith('c_')
+            if (c instanceof Mesh) {
+                csm.setupMaterial(c.material)
+            }
+        })
+        scene.add(object)
+    }
 
     const addBall = (pos: Vector3) => {
         const ball = new Mesh(balls.geometry, new MeshStandardMaterial())
@@ -189,6 +194,18 @@ const App = () => {
                     )
                 )
             }
+            if (ballCount() === ballCountLimit - 1) {
+                // finish him!
+                const boxBounds = new Vector3(1, 1, 1)
+                const megaBox = new Mesh(new BoxGeometry(...boxBounds), balls.material)
+                megaBox.position.copy(new Vector3(0, 10, 0))
+                const megaBoxShape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
+                megaBoxShape.SetDensity(10e3)
+                const megaBoxRb = createBody(megaBox, megaBoxShape, true)
+                megaBoxRb.SetRestitution(0.9)
+                objects.push({ object: megaBox, id: megaBoxRb.GetID() })
+                sceneAdd(megaBox)
+            }
         }
 
         for (const { object, index, id } of objects) {
@@ -209,7 +226,7 @@ const App = () => {
     }
 
     const updateCamera = () => {
-        camera.position.copy(new Vector3(3, 3, 0.5))
+        camera.position.copy(new Vector3(3, 3, -0.5))
         camera.lookAt(new Vector3(0, 0, 0))
     }
 
