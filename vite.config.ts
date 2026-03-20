@@ -1,13 +1,17 @@
 import { defineConfig } from 'vite'
+// @ts-ignore
+import crossOriginIsolation from 'vite-plugin-cross-origin-isolation'
 import solid from 'vite-plugin-solid'
-import wasm from 'vite-plugin-wasm'
 
 export default defineConfig({
-    plugins: [solid(), wasm()],
+    plugins: [solid(), crossOriginIsolation()],
     server: {
         port: 3000,
         hmr: false,
         watch: undefined
+    },
+    optimizeDeps: {
+        exclude: ['jolt-physics']
     },
     build: {
         target: 'esnext'

@@ -1,6 +1,6 @@
 /* @refresh reload */
 
-import { World } from '@dimforge/rapier3d'
+import type Jolt from 'jolt-physics'
 import { createSignal, onMount } from 'solid-js'
 import { render } from 'solid-js/web'
 import {
@@ -9,22 +9,26 @@ import {
     BufferGeometry,
     DirectionalLight,
     EquirectangularReflectionMapping,
-    Float32BufferAttribute,
     LineBasicMaterial,
     LineSegments,
     Mesh,
+    MeshStandardMaterial,
     PerspectiveCamera,
+    PlaneGeometry,
+    Quaternion,
     Scene,
     Vector3,
     WebGLRenderer
 } from 'three'
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
+import { quatToJolt, quatToThree, vec3ToJoltR as rVec3ToJolt, vec3ToJolt, vec3ToThree } from './compat'
 import './index.css'
+import { bodyInterface, initJolt, jolt, joltInterface, layer } from './jolt'
 
 type RbObject = {
     object: Mesh
-    handle?: number
+    handle?: Jolt.BodyID
 }
 
 const gravity = new Vector3(0, -9.8, 0)
@@ -36,7 +40,6 @@ let canvas!: HTMLCanvasElement
 let gl!: WebGL2RenderingContext
 let renderer!: WebGLRenderer
 let scene!: Scene
-let world!: World
 const input = {}
 const objects: RbObject[] = []
 let frameStart: number | undefined = undefined
@@ -45,6 +48,7 @@ const camera = new PerspectiveCamera(90, 1, 0.1, 100)
 let csm!: CSM.CSM
 
 const material = {
+    default: new MeshStandardMaterial(),
     line: new LineBasicMaterial({ vertexColors: true })
 }
 const mesh = {
@@ -54,14 +58,9 @@ mesh.debug.visible = false
 
 const App = () => {
     const [deltaRender, setDeltaRender] = createSignal(0)
-    const [deltaPhysics, setDeltaPhysics] = createSignal(0)
-    const [debug, setDebug] = createSignal(false)
 
     onMount(async () => {
-        world = new World(gravity)
-        world.integrationParameters.dt = dt
-        world.integrationParameters.numSolverIterations = 8
-        world.profilerEnabled = true
+        await initJolt()
 
         renderer = new WebGLRenderer({ canvas, antialias: true })
         renderer.shadowMap.enabled = true
@@ -94,6 +93,17 @@ const App = () => {
         })
 
         // TODO: init scene
+        const floor = new Mesh(new PlaneGeometry(10, 10), material.default)
+        const floorRb = bodyInterface.CreateBody(
+            new jolt.BodyCreationSettings(
+                new jolt.BoxShape(vec3ToJolt(new Vector3(10, 10, 0.1))),
+                rVec3ToJolt(new Vector3()),
+                quatToJolt(new Quaternion()),
+                jolt.EMotionType_Static,
+                layer.nonMoving
+            )
+        )
+        objects.push({ object: floor, handle: floorRb.GetID() })
 
         scene.add(camera)
 
@@ -133,35 +143,26 @@ const App = () => {
     const updateScene = () => {
         for (const { object, handle } of objects) {
             if (handle === undefined) continue
-            const rb = world.getRigidBody(handle)
-            object.position.copy(rb.translation())
-            object.quaternion.copy(rb.rotation())
+            object.position.copy(vec3ToThree(bodyInterface.GetPosition(handle)))
+            object.quaternion.copy(quatToThree(bodyInterface.GetRotation(handle)))
         }
     }
 
-    const updateDebug = () => {
-        const debugGeometry = world.debugRender()
-        mesh.debug.geometry.setAttribute('position', new Float32BufferAttribute(debugGeometry.vertices, 3))
-        mesh.debug.geometry.setAttribute('color', new Float32BufferAttribute(debugGeometry.colors, 4))
+    const updateCamera = () => {
+        camera.position.copy(new Vector3(0, 1, 0))
     }
-
-    const updateCamera = () => {}
 
     const loop = () => {
         setDeltaRender(frameStart !== undefined ? performance.now() - frameStart : 0)
         frameStart = performance.now()
 
-        updateDebug()
         updateInput()
         updateCamera()
         updateScene()
 
-        let dPhysics = 0
         for (let i = 0; i < substeps; i++) {
-            world.step()
-            dPhysics += world.timingStep()
+            joltInterface.Step(dt, 1)
         }
-        setDeltaPhysics(dPhysics)
 
         csm.update()
         renderer.render(scene, camera)
@@ -173,7 +174,6 @@ const App = () => {
                 <div class="debug">
                     <span>delta</span>
                     <span>{`render  ${deltaRender().toFixed(1)}`}</span>
-                    <span>{`physics ${deltaPhysics().toFixed(1)}`}</span>
                 </div>
             </div>
             <canvas ref={canvas!} />

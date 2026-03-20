@@ -8,17 +8,19 @@
         "build": "tsgo && vite build"
     },
     "dependencies": {
-        "solid-js": "1.9.10",
+        "@dimforge/rapier3d": "0.19.3",
         "@types/three": "0.177.0",
-        "@dimforge/rapier3d": "0.19.3"
+        "jolt-physics": "1.0.0",
+        "solid-js": "1.9.10"
     },
     "devDependencies": {
         "@types/node": "24.10.1",
-        "typescript": "5.9.3",
         "@typescript/native-preview": "7.0.0-dev.20251213.1",
-        "vite": "7.2.4",
-        "vite-plugin-solid": "2.11.10",
         "three": "0.177.0",
+        "typescript": "5.9.3",
+        "vite": "7.2.4",
+        "vite-plugin-cross-origin-isolation": "0.1.6",
+        "vite-plugin-solid": "2.11.10",
         "vite-plugin-wasm": "3.5.0"
     }
 }
