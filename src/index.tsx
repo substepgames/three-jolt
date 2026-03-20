@@ -9,8 +9,11 @@ import {
     BoxGeometry,
     Color,
     DirectionalLight,
+    DynamicDrawUsage,
     EquirectangularReflectionMapping,
+    InstancedMesh,
     LineBasicMaterial,
+    Matrix4,
     Mesh,
     MeshStandardMaterial,
     PerspectiveCamera,
@@ -30,6 +33,10 @@ import { bodyInterface, createBody, initJolt, jolt, joltInterface, quatToThree, 
 
 type RbObject = {
     object: Mesh
+    /**
+     * In case of object being instanced
+     */
+    index?: number
     id?: Jolt.BodyID
 }
 
@@ -55,7 +62,9 @@ const material = {
 const App = () => {
     const [deltaRender, setDeltaRender] = createSignal(0)
     const [ballCount, setBallCount] = createSignal(0)
-    const ballCountLimit = 128
+
+    const ballCountLimit = 2048
+    let balls!: InstancedMesh
 
     onMount(async () => {
         await initJolt()
@@ -67,7 +76,7 @@ const App = () => {
         renderer = new WebGLRenderer({ canvas, antialias: true })
         renderer.shadowMap.enabled = true
         renderer.toneMapping = ACESFilmicToneMapping
-        renderer.toneMappingExposure = 2
+        renderer.toneMappingExposure = 1.5
         renderer.setPixelRatio(window.devicePixelRatio)
         gl = renderer.getContext() as WebGL2RenderingContext
 
@@ -87,27 +96,38 @@ const App = () => {
             lightIntensity: 2,
             mode: 'practical',
             maxFar: camera.far,
-            cascades: 8,
+            cascades: 2,
             parent: scene,
-            shadowMapSize: Math.min(1 << 12, renderer.capabilities.maxTextureSize),
+            shadowMapSize: Math.min(1 << 13, renderer.capabilities.maxTextureSize),
             shadowBias: -0.000005,
             lightDirection: directionalLight.position.normalize(),
             camera: camera
         })
 
+        const colorFloor = '#eeeeee'
+        const colorWall = '#888888'
         // floor + 4 walls
         ;[
-            { box: new Vector3(5, 0.1, 5), pos: new Vector3(0, 0, 0) },
-            { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, 2.5) },
-            { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, -2.5) },
-            { box: new Vector3(0.1, 1, 5), pos: new Vector3(2.5, 0.5, 0) },
-            { box: new Vector3(0.1, 1, 5), pos: new Vector3(-2.5, 0.5, 0) }
-        ].forEach(({ box, pos }) => {
-            const wall = new Mesh(new BoxGeometry(...box.toArray()), material.default)
+            { box: new Vector3(25, 0.1, 25), pos: new Vector3(0, 0, 0), color: colorFloor },
+            { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, 2.5), color: colorWall },
+            { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, -2.5), color: colorWall },
+            { box: new Vector3(0.1, 1, 5), pos: new Vector3(2.5, 0.5, 0), color: colorWall },
+            { box: new Vector3(0.1, 1, 5), pos: new Vector3(-2.5, 0.5, 0), color: colorWall }
+        ].forEach(({ box, pos, color }) => {
+            const wall = new Mesh(
+                new BoxGeometry(...box.toArray()),
+                new MeshStandardMaterial({ map: texture.grid, color })
+            )
             wall.position.copy(pos)
-            const wallRb = createBody(wall, new jolt.BoxShape(vec3ToJolt(box)), false)
+            const wallRb = createBody(wall, new jolt.BoxShape(vec3ToJolt(box.clone().divideScalar(2))), false)
             objects.push({ object: wall, id: wallRb.GetID() })
         })
+
+        balls = new InstancedMesh(new SphereGeometry(0.1), material.default, ballCountLimit)
+        balls.instanceMatrix.setUsage(DynamicDrawUsage)
+        balls.castShadow = true
+        balls.receiveShadow = true
+        scene.add(balls)
 
         scene.add(camera)
 
@@ -145,44 +165,51 @@ const App = () => {
     const updateInput = () => {}
 
     const addBall = (pos: Vector3) => {
-        const ball = new Mesh(
-            new SphereGeometry(0.1),
-            new MeshStandardMaterial({ color: new Color().setHSL(Math.random(), 0.5, 0.5), map: texture.grid })
-        )
+        const ball = new Mesh(balls.geometry, new MeshStandardMaterial())
         ball.position.copy(pos)
 
-        ball.traverse(c => {
-            c.castShadow = true
-            c.receiveShadow = true
-            c.visible = !c.name.startsWith('c_')
-            if (c instanceof Mesh) {
-                csm.setupMaterial(c.material)
-            }
-        })
-        scene.add(ball)
+        const index = ballCount()
+        balls.count = index + 1
+        balls.setColorAt(index, new Color().setHSL(Math.random(), 1, 0.2))
+        balls.instanceColor!.needsUpdate = true
 
         const ballRb = createBody(ball, new jolt.SphereShape(0.1), true)
         ballRb.SetRestitution(0.8)
-        objects.push({ object: ball, id: ballRb.GetID() })
+
+        objects.push({ object: balls, index, id: ballRb.GetID() })
+        setBallCount(ballCount() + 1)
     }
 
     const updateScene = () => {
-        for (const { object, id: handle } of objects) {
-            if (handle === undefined) continue
-            object.position.copy(vec3ToThree(bodyInterface.GetPosition(handle)))
-            object.quaternion.copy(quatToThree(bodyInterface.GetRotation(handle)))
+        for (let i = 0; i < 4; i++) {
+            if (ballCount() < ballCountLimit) {
+                addBall(
+                    new Vector3(0, 4, 0).add(
+                        new Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).multiplyScalar(2)
+                    )
+                )
+            }
         }
 
-        if (ballCount() < ballCountLimit) {
-            addBall(
-                new Vector3(0, 2, 0).add(new Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).multiplyScalar(2))
-            )
-            setBallCount(ballCount() + 1)
+        for (const { object, index, id } of objects) {
+            if (id === undefined) continue
+            const pos = vec3ToThree(bodyInterface.GetPosition(id))
+            const quat = quatToThree(bodyInterface.GetRotation(id))
+
+            if (index !== undefined && object instanceof InstancedMesh) {
+                const scale = new Vector3(1, 1, 1)
+                const mat = new Matrix4().compose(pos, quat, scale)
+                object.setMatrixAt(index, mat)
+                object.instanceMatrix.needsUpdate = true
+            } else {
+                object.position.copy(pos)
+                object.quaternion.copy(quat)
+            }
         }
     }
 
     const updateCamera = () => {
-        camera.position.copy(new Vector3(2, 2, 0.5))
+        camera.position.copy(new Vector3(3, 3, 0.5))
         camera.lookAt(new Vector3(0, 0, 0))
     }
 

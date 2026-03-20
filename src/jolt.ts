@@ -25,7 +25,7 @@ export const quatToThree = (q: Jolt.Quat): three.Quaternion =>
 export const quatToJolt = (q: three.Quaternion): Jolt.Quat => new jolt.Quat(q.x, q.y, q.z, q.w)
 
 export const initJolt = async () => {
-    const initJolt = (await import('jolt-physics/wasm')).default
+    const initJolt = (await import('jolt-physics/wasm-multithread')).default
     jolt = await initJolt()
 
     const objectFilter = new jolt.ObjectLayerPairFilterTable(objectLayerCount)
