@@ -1,0 +1,24 @@
+{
+    "name": "three-jolt",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "start": "vite",
+        "build": "tsgo && vite build"
+    },
+    "dependencies": {
+        "solid-js": "1.9.10",
+        "@types/three": "0.177.0",
+        "@dimforge/rapier3d": "0.19.3"
+    },
+    "devDependencies": {
+        "@types/node": "24.10.1",
+        "typescript": "5.9.3",
+        "@typescript/native-preview": "7.0.0-dev.20251213.1",
+        "vite": "7.2.4",
+        "vite-plugin-solid": "2.11.10",
+        "three": "0.177.0",
+        "vite-plugin-wasm": "3.5.0"
+    }
+}
