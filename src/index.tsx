@@ -12,7 +12,6 @@ import {
     DynamicDrawUsage,
     EquirectangularReflectionMapping,
     InstancedMesh,
-    LineBasicMaterial,
     Matrix4,
     Mesh,
     MeshStandardMaterial,
@@ -28,6 +27,7 @@ import {
 } from 'three'
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
+import { CameraControls } from './CameraControls'
 import { DebugRenderer } from './DebugRenderer'
 import { debugMode, dt, substeps } from './constant'
 import './index.css'
@@ -53,13 +53,10 @@ let frameStart: number | undefined = undefined
 
 const camera = new PerspectiveCamera(90, 1, 0.1, 100)
 let csm!: CSM.CSM
+let controls!: CameraControls
 
 const texture = {
     grid: new Texture()
-}
-const material = {
-    default: new MeshStandardMaterial({ map: texture.grid }),
-    line: new LineBasicMaterial({ vertexColors: true })
 }
 
 const App = () => {
@@ -67,7 +64,7 @@ const App = () => {
     const [deltaStep, setDeltaStep] = createSignal(0)
     const [ballCount, setBallCount] = createSignal(0)
 
-    const ballCountLimit = 2048
+    const ballCountLimit = 1024
     let balls!: InstancedMesh
 
     onMount(async () => {
@@ -97,6 +94,13 @@ const App = () => {
         directionalLight.layers.mask = 3
         directionalLight.position.copy(new Vector3(3, 4, 4).normalize().multiplyScalar(-200))
         scene.add(directionalLight)
+
+        const cameraTarget = new Vector3(0, 0, 0)
+        camera.position.copy(new Vector3(3, 3, -0.5).multiplyScalar(1).add(cameraTarget))
+        scene.add(camera)
+
+        controls = new CameraControls(camera, cameraTarget, canvas)
+        controls.target.copy(cameraTarget)
 
         if (debugMode) {
             debugRenderer = new DebugRenderer(scene)
@@ -134,14 +138,12 @@ const App = () => {
         })
 
         balls = new InstancedMesh(
-            new SphereGeometry(0.1),
+            new SphereGeometry(0.15),
             new MeshStandardMaterial({ map: texture.grid, roughness: 0 }),
             ballCountLimit
         )
         balls.instanceMatrix.setUsage(DynamicDrawUsage)
         sceneAdd(balls)
-
-        scene.add(camera)
 
         objects.map(o => sceneAdd(o.object))
         console.debug(objects)
@@ -187,8 +189,8 @@ const App = () => {
         balls.setColorAt(index, new Color().setHSL(Math.random(), 1, 0.2))
         balls.instanceColor!.needsUpdate = true
 
-        const ballRb = createBody(ball, new jolt.SphereShape(0.1), true)
-        ballRb.SetRestitution(0.8)
+        const ballRb = createBody(ball, new jolt.SphereShape(0.15), true)
+        ballRb.SetRestitution(0.6)
         ballRb.GetMotionProperties().SetLinearDamping(1)
 
         objects.push({ object: balls, index, id: ballRb.GetID() })
@@ -207,12 +209,14 @@ const App = () => {
             if (ballCount() === ballCountLimit - 1) {
                 // finish him!
                 const boxBounds = new Vector3(1, 1, 1)
-                const megaBox = new Mesh(new BoxGeometry(...boxBounds), material.default)
+                const megaBox = new Mesh(
+                    new BoxGeometry(...boxBounds),
+                    new MeshStandardMaterial({ map: texture.grid, color: new Color().setHSL(10, 1, 0.2) })
+                )
                 megaBox.position.copy(new Vector3(0, 10, 0))
                 const megaBoxShape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
-                megaBoxShape.SetDensity(10e3)
+                megaBoxShape.SetDensity(5e3)
                 const megaBoxRb = createBody(megaBox, megaBoxShape, true)
-                megaBoxRb.SetRestitution(0.2)
                 objects.push({ object: megaBox, id: megaBoxRb.GetID() })
                 sceneAdd(megaBox)
             }
@@ -235,17 +239,11 @@ const App = () => {
         }
     }
 
-    const updateCamera = () => {
-        camera.position.copy(new Vector3(3, 3, -0.5))
-        camera.lookAt(new Vector3(0, 0, 0))
-    }
-
     const loop = () => {
         setDeltaRender(frameStart !== undefined ? performance.now() - frameStart : 0)
         frameStart = performance.now()
 
         updateInput()
-        updateCamera()
         updateScene()
 
         const stepStart = performance.now()
@@ -258,6 +256,7 @@ const App = () => {
         }
 
         csm.update()
+        controls.update()
         renderer.render(scene, camera)
     }
 
