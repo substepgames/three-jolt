@@ -28,9 +28,10 @@ import {
 } from 'three'
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
+import { DebugRenderer } from './DebugRenderer'
 import { debugMode, dt, substeps } from './constant'
 import './index.css'
-import { bodyInterface, createBody, initJolt, jolt, joltInterface, physicsSystem, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
+import { bodyInterface, createBody, initJolt, jolt, joltInterface, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
 
 type RbObject = {
     object: Mesh
@@ -44,6 +45,7 @@ type RbObject = {
 let canvas!: HTMLCanvasElement
 let gl!: WebGL2RenderingContext
 let renderer!: WebGLRenderer
+let debugRenderer!: DebugRenderer
 let scene!: Scene
 const input = {}
 const objects: RbObject[] = []
@@ -65,7 +67,7 @@ const App = () => {
     const [deltaStep, setDeltaStep] = createSignal(0)
     const [ballCount, setBallCount] = createSignal(0)
 
-    const ballCountLimit = 128
+    const ballCountLimit = 2048
     let balls!: InstancedMesh
 
     onMount(async () => {
@@ -89,10 +91,16 @@ const App = () => {
         scene.background = envMap
 
         const ambientLight = new AmbientLight(0xffffff, 0.5)
+        ambientLight.layers.mask = 3
         scene.add(ambientLight)
         const directionalLight = new DirectionalLight(0xffffff)
+        directionalLight.layers.mask = 3
         directionalLight.position.copy(new Vector3(3, 4, 4).normalize().multiplyScalar(-200))
         scene.add(directionalLight)
+
+        if (debugMode) {
+            debugRenderer = new DebugRenderer(scene)
+        }
 
         csm = new CSM.CSM({
             lightIntensity: 2,
@@ -244,9 +252,12 @@ const App = () => {
         joltInterface.Step(dt, substeps)
         setDeltaStep(performance.now() - stepStart)
 
-        if (!debugMode) {
-            csm.update()
+        camera.layers.mask = debugMode ? 2 : 1
+        if (debugMode) {
+            debugRenderer.render()
         }
+
+        csm.update()
         renderer.render(scene, camera)
     }
 

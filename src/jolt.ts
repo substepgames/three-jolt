@@ -1,9 +1,10 @@
 import type Jolt from 'jolt-physics'
 import * as three from 'three'
 import { Object3D } from 'three'
-import { gravity, debugMode } from './constant'
+import { debugMode, gravity } from './constant'
+import { JoltDebugModule } from './jolt-debug'
 
-export let jolt: typeof Jolt
+export let jolt: typeof Jolt & JoltDebugModule
 export let joltInterface!: Jolt.JoltInterface
 export let physicsSystem!: Jolt.PhysicsSystem
 export let bodyInterface!: Jolt.BodyInterface
