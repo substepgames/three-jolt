@@ -55,6 +55,12 @@ export const initJolt = async () => {
     joltInterface = new jolt.JoltInterface(settings)
 
     physicsSystem = joltInterface.GetPhysicsSystem()
+    const physicsSettings = physicsSystem.GetPhysicsSettings()
+    // physicsSettings.mDeterministicSimulation = false
+    // physicsSettings.mNumPositionSteps = 1
+    // physicsSettings.mNumVelocitySteps = 1
+    // physicsSettings.mPointVelocitySleepThreshold = 0.05
+    // physicsSettings.mTimeBeforeSleep = 0.1
     physicsSystem.SetGravity(vec3ToJolt(gravity))
     bodyInterface = physicsSystem.GetBodyInterface()
 
