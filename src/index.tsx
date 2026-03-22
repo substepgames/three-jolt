@@ -234,7 +234,7 @@ const App = () => {
                 const boxBounds = new Vector3(1, 1, 1)
                 const megaBox = new Mesh(
                     new BoxGeometry(...boxBounds),
-                    new MeshStandardMaterial({ map: texture.grid, color: new Color().setHSL(10, 1, 0.2) })
+                    new MeshStandardMaterial({ map: texture.grid, color: new Color().setHSL(0.1, 1, 0.2) })
                 )
                 megaBox.position.copy(new Vector3(0, 10, 0))
                 const megaBoxShape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
@@ -309,6 +309,8 @@ const App = () => {
             object.position.copy(pos)
             object.quaternion.copy(quat)
             object.visible = true
+            const color = bodyInterface.IsActive(id) ? new Color().setHSL(0, 0, 1) : new Color().setHSL(0.8, 0.5, 0.25)
+            ;((object.children[0] as Mesh).material as MeshBasicMaterial).color = color
         }
 
         Object.values(debugMeshes).forEach(m => {
