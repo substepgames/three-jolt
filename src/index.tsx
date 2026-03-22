@@ -13,6 +13,7 @@ import {
     DirectionalLight,
     DynamicDrawUsage,
     EquirectangularReflectionMapping,
+    Group,
     InstancedMesh,
     Matrix4,
     Mesh,
@@ -79,7 +80,7 @@ const texture = {
 
 const App = () => {
     const [debugMode, setDebugMode] = createSignal(true)
-    const debugMeshes: Record<number, Mesh> = {}
+    const debugMeshes: Record<number, Group> = {}
 
     const [deltaRender, setDeltaRender] = createSignal(0)
     const [deltaStep, setDeltaStep] = createSignal(0)
@@ -263,14 +264,16 @@ const App = () => {
 
     const updateDebug = () => {
         if (!debugMode()) return
+        Object.values(debugMeshes).forEach(m => (m.visible = false))
+
         const outBodies = new jolt.BodyIDVector()
         physicsSystem.GetBodies(outBodies)
         for (let i = 0; i < outBodies.size(); i++) {
             const id = outBodies.at(i)
             const idx = id.GetIndex()
             const shape = bodyInterface.GetShape(id)
-            let mesh = debugMeshes[idx]
-            if (!mesh) {
+            let object = debugMeshes[idx]
+            if (!object) {
                 const aabb = jolt.AABox.prototype.sBiggest()
                 const quat = jolt.Quat.prototype.sIdentity()
                 const scale = new jolt.Vec3(1, 1, 1)
@@ -286,18 +289,26 @@ const App = () => {
                 const geometry = new BufferGeometry()
                 geometry.setAttribute('position', buffer)
                 geometry.computeVertexNormals()
-                mesh = new Mesh(geometry, new MeshBasicMaterial({ wireframe: true }))
-                mesh.layers.set(layer.debug)
-                scene.add(mesh)
-                debugMeshes[idx] = mesh
+                object = new Group()
+                object.layers.set(layer.debug)
+                scene.add(object)
+                debugMeshes[idx] = object
+
+                const triMesh = new Mesh(geometry, new MeshBasicMaterial({ wireframe: true }))
+                triMesh.layers = object.layers
+                object.add(triMesh)
             }
 
             const pos = vec3ToThree(bodyInterface.GetPosition(id))
             const quat = quatToThree(bodyInterface.GetRotation(id))
-            mesh.position.copy(pos)
-            mesh.quaternion.copy(quat)
-            mesh.visible = true
+            object.position.copy(pos)
+            object.quaternion.copy(quat)
+            object.visible = true
         }
+
+        Object.values(debugMeshes).forEach(m => {
+            if (!m.visible) scene.remove(m)
+        })
     }
 
     const loop = () => {
