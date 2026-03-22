@@ -1,6 +1,6 @@
 import type Jolt from 'jolt-physics'
 import initJolt from 'jolt-physics/wasm-multithread'
-import { Object3D, Quaternion, Vector3 } from 'three'
+import { BoxGeometry, BufferAttribute, BufferGeometry, Object3D, Quaternion, SphereGeometry, Vector3 } from 'three'
 import { gravity } from './constant'
 import { JoltDebugModule } from './jolt-debug'
 
@@ -74,4 +74,54 @@ export const createBody = (object: Object3D, shape: Jolt.Shape, dynamic: boolean
     )
     bodyInterface.AddBody(rb.GetID(), jolt.EActivation_Activate)
     return rb
+}
+
+/**
+ * Must be consistent with `shapeGeometry()`
+ */
+export const shapeScale = (shape: Jolt.Shape): Vector3 => {
+    const scale = new Vector3(1, 1, 1)
+    if (shape.GetType() !== jolt.EShapeType_Convex) return scale
+    const subType = shape.GetSubType()
+    switch (subType) {
+        case jolt.EShapeSubType_Sphere: {
+            const r = jolt.castObject(shape, jolt.SphereShape).GetRadius()
+            return new Vector3(r, r, r).multiplyScalar(2)
+        }
+        case jolt.EShapeSubType_Box: {
+            const extent = jolt.castObject(shape, jolt.BoxShape).GetHalfExtent()
+            return new Vector3(extent.GetX(), extent.GetY(), extent.GetZ())
+        }
+    }
+    return scale
+}
+
+export const shapeGeometry = (shape: Jolt.Shape): BufferGeometry => {
+    if (shape.GetType() === jolt.EShapeType_Convex) {
+        const subType = shape.GetSubType()
+        switch (subType) {
+            case jolt.EShapeSubType_Box: {
+                return new BoxGeometry(2, 2, 2)
+            }
+            case jolt.EShapeSubType_Sphere: {
+                return new SphereGeometry(0.5, 8, 4)
+            }
+        }
+    }
+    const aabb = jolt.AABox.prototype.sBiggest()
+    const quat = jolt.Quat.prototype.sIdentity()
+    const scale = new jolt.Vec3(1, 1, 1)
+    const triContext = new jolt.ShapeGetTriangles(shape, aabb, shape.GetCenterOfMass(), quat, scale)
+    const vertices = new Float32Array(
+        jolt.HEAPF32.buffer,
+        triContext.GetVerticesData(),
+        triContext.GetVerticesSize() / Float32Array.BYTES_PER_ELEMENT
+    )
+    const buffer = new BufferAttribute(vertices, 3).clone()
+    jolt.destroy(triContext)
+
+    const geometry = new BufferGeometry()
+    geometry.setAttribute('position', buffer)
+    geometry.computeVertexNormals()
+    return geometry
 }

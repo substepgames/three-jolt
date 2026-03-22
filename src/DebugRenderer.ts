@@ -1,57 +1,68 @@
-import { AxesHelper, BufferAttribute, BufferGeometry, Color, Group, Mesh, MeshBasicMaterial } from 'three'
+import { AxesHelper, Color, DynamicDrawUsage, Group, InstancedMesh, Matrix4, MeshBasicMaterial } from 'three'
 import { layer, scene } from '.'
-import { bodyInterface, jolt, physicsSystem, quatToThree, vec3ToThree } from './jolt'
+import { bodyInterface, jolt, physicsSystem, quatToThree, shapeGeometry, shapeScale, vec3ToThree } from './jolt'
+
+const shapeBodyLimit = 2048
 
 export class DebugRenderer {
     debugMeshes: Record<number, Group> = {}
+    shapes: Record<string, InstancedMesh> = {}
 
     update() {
         Object.values(this.debugMeshes).forEach(m => (m.visible = false))
+        Object.values(this.shapes).forEach(s => (s.count = 0))
 
         const outBodies = new jolt.BodyIDVector()
         physicsSystem.GetBodies(outBodies)
+        const mat = new Matrix4()
         for (let i = 0; i < outBodies.size(); i++) {
             const id = outBodies.at(i)
             const idx = id.GetIndex()
+            // TODO: assuming shape is not changed after body's creation, it can be cached and derived from body id
+            // same for shapeId calculation
             const shape = bodyInterface.GetShape(id)
+            const pos = vec3ToThree(bodyInterface.GetPosition(id))
+            const quat = quatToThree(bodyInterface.GetRotation(id))
+
+            const scale = shapeScale(shape)
+            const shapeId = `${shape.GetType()}/${shape.GetSubType()}/${shape.GetVolume()}/${scale.toArray()}`
+            let instance = this.shapes[shapeId]
+            if (!instance) {
+                instance = new InstancedMesh(
+                    shapeGeometry(shape),
+                    new MeshBasicMaterial({ wireframe: true }),
+                    shapeBodyLimit
+                )
+                instance.layers.set(layer.debug)
+                instance.instanceMatrix.setUsage(DynamicDrawUsage)
+                scene.add(instance)
+                this.shapes[shapeId] = instance
+            }
+
+            mat.compose(pos, quat, scale)
+            instance.setMatrixAt(instance.count, mat)
+            instance.instanceMatrix.needsUpdate = true
+            const color = bodyInterface.IsActive(id) ? new Color().setHSL(0, 0, 1) : new Color().setHSL(0.8, 0.5, 0.25)
+            instance.setColorAt(instance.count, color)
+            instance.instanceColor!.needsUpdate = true
+            instance.count++
+
             let object = this.debugMeshes[idx]
             if (!object) {
-                const aabb = jolt.AABox.prototype.sBiggest()
-                const quat = jolt.Quat.prototype.sIdentity()
-                const scale = new jolt.Vec3(1, 1, 1)
-                const triContext = new jolt.ShapeGetTriangles(shape, aabb, shape.GetCenterOfMass(), quat, scale)
-                const vertices = new Float32Array(
-                    jolt.HEAPF32.buffer,
-                    triContext.GetVerticesData(),
-                    triContext.GetVerticesSize() / Float32Array.BYTES_PER_ELEMENT
-                )
-                const buffer = new BufferAttribute(vertices, 3).clone()
-                jolt.destroy(triContext)
-
-                const geometry = new BufferGeometry()
-                geometry.setAttribute('position', buffer)
-                geometry.computeVertexNormals()
                 object = new Group()
                 object.layers.set(layer.debug)
-                scene.add(object)
-                this.debugMeshes[idx] = object
-
-                const triMesh = new Mesh(geometry, new MeshBasicMaterial({ wireframe: true }))
-                object.add(triMesh)
 
                 const axesHelper = new AxesHelper(0.1)
                 object.add(axesHelper)
 
                 object.children.forEach(c => (c.layers = object.layers))
+                scene.add(object)
+                this.debugMeshes[idx] = object
             }
 
-            const pos = vec3ToThree(bodyInterface.GetPosition(id))
-            const quat = quatToThree(bodyInterface.GetRotation(id))
             object.position.copy(pos)
             object.quaternion.copy(quat)
             object.visible = true
-            const color = bodyInterface.IsActive(id) ? new Color().setHSL(0, 0, 1) : new Color().setHSL(0.8, 0.5, 0.25)
-            ;((object.children[0] as Mesh).material as MeshBasicMaterial).color = color
         }
 
         Object.values(this.debugMeshes).forEach(m => {

@@ -60,7 +60,6 @@ const App = () => {
         renderer.setSize(window.innerWidth, window.innerHeight)
         renderer.setPixelRatio(window.devicePixelRatio)
         const aspect = window.innerWidth / window.innerHeight
-        console.log(aspect)
         scene.camera.aspect = aspect
         scene.camera.updateProjectionMatrix()
     }
