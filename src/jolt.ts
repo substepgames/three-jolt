@@ -1,7 +1,7 @@
 import type Jolt from 'jolt-physics'
 import * as three from 'three'
 import { Object3D } from 'three'
-import { debugMode, gravity } from './constant'
+import { gravity } from './constant'
 import { JoltDebugModule } from './jolt-debug'
 
 export let jolt: typeof Jolt & JoltDebugModule
@@ -26,9 +26,7 @@ export const quatToThree = (q: Jolt.Quat): three.Quaternion =>
 export const quatToJolt = (q: three.Quaternion): Jolt.Quat => new jolt.Quat(q.x, q.y, q.z, q.w)
 
 export const initJolt = async () => {
-    const mod = debugMode
-        ? await import('jolt-physics/debug-wasm-compat')
-        : await import('jolt-physics/wasm-multithread')
+    const mod = await import('jolt-physics/wasm-multithread')
     const initJolt = mod.default
     jolt = await initJolt()
 

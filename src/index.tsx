@@ -7,6 +7,8 @@ import {
     ACESFilmicToneMapping,
     AmbientLight,
     BoxGeometry,
+    BufferAttribute,
+    BufferGeometry,
     Color,
     DirectionalLight,
     DynamicDrawUsage,
@@ -14,6 +16,7 @@ import {
     InstancedMesh,
     Matrix4,
     Mesh,
+    MeshBasicMaterial,
     MeshStandardMaterial,
     Object3D,
     PerspectiveCamera,
@@ -28,25 +31,36 @@ import {
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
 import { CameraControls } from './CameraControls'
-import { DebugRenderer } from './DebugRenderer'
-import { debugMode, dt, substeps } from './constant'
+import { dt, substeps } from './constant'
 import './index.css'
-import { bodyInterface, createBody, initJolt, jolt, joltInterface, quatToThree, vec3ToJolt, vec3ToThree } from './jolt'
+import {
+    bodyInterface,
+    createBody,
+    initJolt,
+    jolt,
+    joltInterface,
+    physicsSystem,
+    quatToThree,
+    vec3ToJolt,
+    vec3ToThree
+} from './jolt'
 
 type RbObject = {
     object: Mesh
-    /**
-     * In case of object being instanced
-     */
-    index?: number
-    id?: Jolt.BodyID
+    rb?: {
+        id: Jolt.BodyID
+        /**
+         * In case of object being instanced
+         */
+        index?: number
+    }
 }
 
 let canvas!: HTMLCanvasElement
 let gl!: WebGL2RenderingContext
 let renderer!: WebGLRenderer
-let debugRenderer!: DebugRenderer
 let scene!: Scene
+let envMap!: Texture
 const input = {}
 const objects: RbObject[] = []
 let frameStart: number | undefined = undefined
@@ -55,11 +69,18 @@ const camera = new PerspectiveCamera(90, 1, 0.1, 100)
 let csm!: CSM.CSM
 let controls!: CameraControls
 
+const layer = {
+    default: 0,
+    debug: 1
+}
 const texture = {
     grid: new Texture()
 }
 
 const App = () => {
+    const [debugMode, setDebugMode] = createSignal(true)
+    const debugMeshes: Record<number, Mesh> = {}
+
     const [deltaRender, setDeltaRender] = createSignal(0)
     const [deltaStep, setDeltaStep] = createSignal(0)
     const [ballCount, setBallCount] = createSignal(0)
@@ -83,15 +104,15 @@ const App = () => {
 
         scene = new Scene()
 
-        const envMap = await new exrLoader.EXRLoader().loadAsync('texture/autumn_field_puresky_2k.exr')
+        envMap = await new exrLoader.EXRLoader().loadAsync('texture/autumn_field_puresky_2k.exr')
         envMap.mapping = EquirectangularReflectionMapping
         scene.background = envMap
 
         const ambientLight = new AmbientLight(0xffffff, 0.5)
-        ambientLight.layers.mask = 3
+        ambientLight.layers.enableAll()
         scene.add(ambientLight)
         const directionalLight = new DirectionalLight(0xffffff)
-        directionalLight.layers.mask = 3
+        directionalLight.layers.enableAll()
         directionalLight.position.copy(new Vector3(3, 4, 4).normalize().multiplyScalar(-200))
         scene.add(directionalLight)
 
@@ -101,10 +122,6 @@ const App = () => {
 
         controls = new CameraControls(camera, cameraTarget, canvas)
         controls.target.copy(cameraTarget)
-
-        if (debugMode) {
-            debugRenderer = new DebugRenderer(scene)
-        }
 
         csm = new CSM.CSM({
             lightIntensity: 2,
@@ -134,7 +151,7 @@ const App = () => {
             )
             wall.position.copy(pos)
             const wallRb = createBody(wall, new jolt.BoxShape(vec3ToJolt(box.clone().divideScalar(2))), false)
-            objects.push({ object: wall, id: wallRb.GetID() })
+            objects.push({ object: wall, rb: { id: wallRb.GetID() } })
         })
 
         balls = new InstancedMesh(
@@ -164,7 +181,11 @@ const App = () => {
         renderer.setPixelRatio(window.devicePixelRatio)
     }
 
-    const onInput = (e: KeyboardEvent) => {}
+    const onInput = (e: KeyboardEvent) => {
+        if (e.code === 'KeyD' && e.type === 'keyup') {
+            setDebugMode(!debugMode())
+        }
+    }
 
     const updateInput = () => {}
 
@@ -193,7 +214,7 @@ const App = () => {
         ballRb.SetRestitution(0.6)
         ballRb.GetMotionProperties().SetLinearDamping(1)
 
-        objects.push({ object: balls, index, id: ballRb.GetID() })
+        objects.push({ object: balls, rb: { id: ballRb.GetID(), index } })
         setBallCount(ballCount() + 1)
     }
 
@@ -217,25 +238,65 @@ const App = () => {
                 const megaBoxShape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
                 megaBoxShape.SetDensity(5e3)
                 const megaBoxRb = createBody(megaBox, megaBoxShape, true)
-                objects.push({ object: megaBox, id: megaBoxRb.GetID() })
+                objects.push({ object: megaBox, rb: { id: megaBoxRb.GetID() } })
                 sceneAdd(megaBox)
             }
         }
 
-        for (const { object, index, id } of objects) {
-            if (id === undefined) continue
-            const pos = vec3ToThree(bodyInterface.GetPosition(id))
-            const quat = quatToThree(bodyInterface.GetRotation(id))
+        for (const { object, rb } of objects) {
+            if (!rb) continue
+            if (rb.id === undefined) continue
+            const pos = vec3ToThree(bodyInterface.GetPosition(rb.id))
+            const quat = quatToThree(bodyInterface.GetRotation(rb.id))
 
-            if (index !== undefined && object instanceof InstancedMesh) {
+            if (rb.index !== undefined && object instanceof InstancedMesh) {
                 const scale = new Vector3(1, 1, 1)
                 const mat = new Matrix4().compose(pos, quat, scale)
-                object.setMatrixAt(index, mat)
+                object.setMatrixAt(rb.index, mat)
                 object.instanceMatrix.needsUpdate = true
             } else {
                 object.position.copy(pos)
                 object.quaternion.copy(quat)
             }
+        }
+    }
+
+    const updateDebug = () => {
+        if (!debugMode()) return
+        const outBodies = new jolt.BodyIDVector()
+        physicsSystem.GetBodies(outBodies)
+        for (let i = 0; i < outBodies.size(); i++) {
+            const id = outBodies.at(i)
+            const idx = id.GetIndex()
+            const shape = bodyInterface.GetShape(id)
+            let mesh = debugMeshes[idx]
+            if (!mesh) {
+                const aabb = jolt.AABox.prototype.sBiggest()
+                const quat = jolt.Quat.prototype.sIdentity()
+                const scale = new jolt.Vec3(1, 1, 1)
+                const triContext = new jolt.ShapeGetTriangles(shape, aabb, shape.GetCenterOfMass(), quat, scale)
+                const vertices = new Float32Array(
+                    jolt.HEAPF32.buffer,
+                    triContext.GetVerticesData(),
+                    triContext.GetVerticesSize() / Float32Array.BYTES_PER_ELEMENT
+                )
+                const buffer = new BufferAttribute(vertices, 3).clone()
+                jolt.destroy(triContext)
+
+                const geometry = new BufferGeometry()
+                geometry.setAttribute('position', buffer)
+                geometry.computeVertexNormals()
+                mesh = new Mesh(geometry, new MeshBasicMaterial({ wireframe: true }))
+                mesh.layers.set(layer.debug)
+                scene.add(mesh)
+                debugMeshes[idx] = mesh
+            }
+
+            const pos = vec3ToThree(bodyInterface.GetPosition(id))
+            const quat = quatToThree(bodyInterface.GetRotation(id))
+            mesh.position.copy(pos)
+            mesh.quaternion.copy(quat)
+            mesh.visible = true
         }
     }
 
@@ -250,10 +311,9 @@ const App = () => {
         joltInterface.Step(dt, substeps)
         setDeltaStep(performance.now() - stepStart)
 
-        camera.layers.mask = debugMode ? 2 : 1
-        if (debugMode) {
-            debugRenderer.render()
-        }
+        camera.layers.set(debugMode() ? layer.debug : layer.default)
+        scene.background = debugMode() ? null : envMap
+        updateDebug()
 
         csm.update()
         controls.update()
