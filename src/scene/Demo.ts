@@ -126,6 +126,7 @@ export class DemoScene extends Scene {
         this.balls.count = index + 1
         this.balls.setColorAt(index, new Color().setHSL(Math.random(), 1, 0.2))
         this.balls.instanceColor!.needsUpdate = true
+        this.balls.computeBoundingSphere()
 
         const shape = new jolt.SphereShape((this.balls.geometry as SphereGeometry).parameters.radius)
         shape.SetDensity(0.5e3)
