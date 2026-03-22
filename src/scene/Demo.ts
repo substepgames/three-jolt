@@ -140,7 +140,7 @@ export class DemoScene extends Scene {
         this.ballCount++
     }
 
-    update(debugMode: boolean) {
+    update() {
         for (let i = 0; i < 4; i++) {
             if (this.ballCount < this.ballCountLimit) {
                 this.addBall(
@@ -181,15 +181,13 @@ export class DemoScene extends Scene {
                 object.quaternion.copy(quat)
             }
         }
-
-        this.camera.layers.set(debugMode ? layer.debug : layer.default)
-        this.background = debugMode ? null : this.envMap
-
-        this.csm.update()
-        this.controls.update()
     }
 
-    render() {
+    render(debugMode: boolean) {
+        this.camera.layers.set(debugMode ? layer.debug : layer.default)
+        this.background = debugMode ? null : this.envMap
+        this.csm.update()
+        this.controls.update()
         this.renderer.render(this, this.camera)
     }
 

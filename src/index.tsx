@@ -2,20 +2,11 @@
 
 import { createSignal, onMount } from 'solid-js'
 import { render } from 'solid-js/web'
-import {
-    ACESFilmicToneMapping,
-    AxesHelper,
-    BufferAttribute,
-    BufferGeometry,
-    Color,
-    Group,
-    Mesh,
-    MeshBasicMaterial,
-    WebGLRenderer
-} from 'three'
+import { ACESFilmicToneMapping, WebGLRenderer } from 'three'
+import { DebugRenderer } from './DebugRenderer'
 import { dt, substeps } from './constant'
 import './index.css'
-import { bodyInterface, initPhysics, jolt, joltInterface, physicsSystem, quatToThree, vec3ToThree } from './jolt'
+import { initPhysics, joltInterface } from './jolt'
 import { DemoScene } from './scene/Demo'
 import { loadTextures } from './texture'
 
@@ -23,16 +14,17 @@ export let canvas!: HTMLCanvasElement
 export let gl!: WebGL2RenderingContext
 export let renderer!: WebGLRenderer
 export let scene!: DemoScene
+export const debugRenderer = new DebugRenderer()
 
 export const layer = {
     default: 0,
     debug: 1
 }
 
-const App = () => {
-    const [debugMode, setDebugMode] = createSignal(false)
-    const debugMeshes: Record<number, Group> = {}
+const [debugMode, setDebugMode] = createSignal(false)
+const [paused, setPaused] = createSignal(false)
 
+const App = () => {
     const [deltaRender, setDeltaRender] = createSignal(0)
     const [deltaStep, setDeltaStep] = createSignal(0)
     const [ballCount, setBallCount] = createSignal(0)
@@ -42,24 +34,28 @@ const App = () => {
     onMount(async () => {
         await initPhysics()
         await loadTextures()
+        initRenderer()
 
+        scene = new DemoScene(canvas, renderer)
+        await scene.init()
+
+        resize()
+        const body = document.body
+        body.addEventListener('resize', resize)
+        body.addEventListener('keydown', onInput)
+        body.addEventListener('keyup', onInput)
+
+        renderer.setAnimationLoop(loop)
+    })
+
+    const initRenderer = () => {
         renderer = new WebGLRenderer({ canvas, antialias: true })
         renderer.shadowMap.enabled = true
         renderer.toneMapping = ACESFilmicToneMapping
         renderer.toneMappingExposure = 1.5
         renderer.setPixelRatio(window.devicePixelRatio)
         gl = renderer.getContext() as WebGL2RenderingContext
-
-        scene = new DemoScene(canvas, renderer)
-        await scene.init()
-
-        resize()
-        window.addEventListener('resize', resize)
-        window.addEventListener('keydown', onInput)
-        window.addEventListener('keyup', onInput)
-
-        renderer.setAnimationLoop(loop)
-    })
+    }
 
     const resize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight)
@@ -68,67 +64,19 @@ const App = () => {
     }
 
     const onInput = (e: KeyboardEvent) => {
-        if (e.code === 'KeyD' && e.type === 'keyup') {
-            setDebugMode(!debugMode())
+        if (e.shiftKey && e.type === 'keyup') {
+            switch (e.code) {
+                case 'KeyD':
+                    setDebugMode(!debugMode())
+                    break
+                case 'KeyP':
+                    setPaused(!paused())
+                    break
+            }
         }
     }
 
     const updateInput = () => {}
-
-    const updateDebug = () => {
-        if (!debugMode()) return
-        Object.values(debugMeshes).forEach(m => (m.visible = false))
-
-        const outBodies = new jolt.BodyIDVector()
-        physicsSystem.GetBodies(outBodies)
-        for (let i = 0; i < outBodies.size(); i++) {
-            const id = outBodies.at(i)
-            const idx = id.GetIndex()
-            const shape = bodyInterface.GetShape(id)
-            let object = debugMeshes[idx]
-            if (!object) {
-                const aabb = jolt.AABox.prototype.sBiggest()
-                const quat = jolt.Quat.prototype.sIdentity()
-                const scale = new jolt.Vec3(1, 1, 1)
-                const triContext = new jolt.ShapeGetTriangles(shape, aabb, shape.GetCenterOfMass(), quat, scale)
-                const vertices = new Float32Array(
-                    jolt.HEAPF32.buffer,
-                    triContext.GetVerticesData(),
-                    triContext.GetVerticesSize() / Float32Array.BYTES_PER_ELEMENT
-                )
-                const buffer = new BufferAttribute(vertices, 3).clone()
-                jolt.destroy(triContext)
-
-                const geometry = new BufferGeometry()
-                geometry.setAttribute('position', buffer)
-                geometry.computeVertexNormals()
-                object = new Group()
-                object.layers.set(layer.debug)
-                scene.add(object)
-                debugMeshes[idx] = object
-
-                const triMesh = new Mesh(geometry, new MeshBasicMaterial({ wireframe: true }))
-                object.add(triMesh)
-
-                const axesHelper = new AxesHelper(0.1)
-                object.add(axesHelper)
-
-                object.children.forEach(c => (c.layers = object.layers))
-            }
-
-            const pos = vec3ToThree(bodyInterface.GetPosition(id))
-            const quat = quatToThree(bodyInterface.GetRotation(id))
-            object.position.copy(pos)
-            object.quaternion.copy(quat)
-            object.visible = true
-            const color = bodyInterface.IsActive(id) ? new Color().setHSL(0, 0, 1) : new Color().setHSL(0.8, 0.5, 0.25)
-            ;((object.children[0] as Mesh).material as MeshBasicMaterial).color = color
-        }
-
-        Object.values(debugMeshes).forEach(m => {
-            if (!m.visible) scene.remove(m)
-        })
-    }
 
     const loop = () => {
         setDeltaRender(frameStart !== undefined ? performance.now() - frameStart : 0)
@@ -136,15 +84,18 @@ const App = () => {
 
         updateInput()
 
-        setBallCount(scene.ballCount)
         const stepStart = performance.now()
-        joltInterface.Step(dt, substeps)
+        if (!paused()) {
+            joltInterface.Step(dt, substeps)
+        }
         setDeltaStep(performance.now() - stepStart)
+        if (!paused()) {
+            scene.update()
+            setBallCount(scene.ballCount)
+        }
 
-        updateDebug()
-        scene.render()
-
-        scene.update(debugMode())
+        if (debugMode()) debugRenderer.update()
+        scene.render(debugMode())
     }
 
     return (
