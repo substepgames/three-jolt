@@ -117,12 +117,6 @@ export class DemoScene extends Scene {
         console.debug(this.objects)
     }
 
-    resize() {
-        const aspect = window.innerWidth / window.innerHeight
-        this.camera.aspect = aspect
-        this.camera.updateProjectionMatrix()
-    }
-
     addBall(pos: Vector3) {
         const ball = new Mesh(this.balls.geometry, new MeshStandardMaterial())
         ball.position.copy(pos)

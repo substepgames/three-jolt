@@ -40,10 +40,9 @@ const App = () => {
         await scene.init()
 
         resize()
-        const body = document.body
-        body.addEventListener('resize', resize)
-        body.addEventListener('keydown', onInput)
-        body.addEventListener('keyup', onInput)
+        window.addEventListener('resize', resize)
+        document.body.addEventListener('keydown', onInput)
+        document.body.addEventListener('keyup', onInput)
 
         renderer.setAnimationLoop(loop)
     })
@@ -60,7 +59,10 @@ const App = () => {
     const resize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight)
         renderer.setPixelRatio(window.devicePixelRatio)
-        scene.resize()
+        const aspect = window.innerWidth / window.innerHeight
+        console.log(aspect)
+        scene.camera.aspect = aspect
+        scene.camera.updateProjectionMatrix()
     }
 
     const onInput = (e: KeyboardEvent) => {
