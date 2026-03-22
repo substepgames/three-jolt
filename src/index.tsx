@@ -6,6 +6,7 @@ import { render } from 'solid-js/web'
 import {
     ACESFilmicToneMapping,
     AmbientLight,
+    AxesHelper,
     BoxGeometry,
     BufferAttribute,
     BufferGeometry,
@@ -295,8 +296,12 @@ const App = () => {
                 debugMeshes[idx] = object
 
                 const triMesh = new Mesh(geometry, new MeshBasicMaterial({ wireframe: true }))
-                triMesh.layers = object.layers
                 object.add(triMesh)
+
+                const axesHelper = new AxesHelper(0.1)
+                object.add(axesHelper)
+
+                object.children.forEach(c => (c.layers = object.layers))
             }
 
             const pos = vec3ToThree(bodyInterface.GetPosition(id))
