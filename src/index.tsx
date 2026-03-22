@@ -15,7 +15,7 @@ import {
 } from 'three'
 import { dt, substeps } from './constant'
 import './index.css'
-import { bodyInterface, initJolt, jolt, joltInterface, physicsSystem, quatToThree, vec3ToThree } from './jolt'
+import { bodyInterface, initPhysics, jolt, joltInterface, physicsSystem, quatToThree, vec3ToThree } from './jolt'
 import { DemoScene } from './scene/Demo'
 import { loadTextures } from './texture'
 
@@ -40,7 +40,7 @@ const App = () => {
     let frameStart: number | undefined = undefined
 
     onMount(async () => {
-        await initJolt()
+        await initPhysics()
         await loadTextures()
 
         renderer = new WebGLRenderer({ canvas, antialias: true })

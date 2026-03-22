@@ -10,6 +10,9 @@ export default defineConfig({
         hmr: false,
         watch: undefined
     },
+    worker: {
+        format: 'es'
+    },
     optimizeDeps: {
         exclude: ['jolt-physics']
     },
