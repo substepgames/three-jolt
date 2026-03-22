@@ -21,6 +21,7 @@ import {
 import * as CSM from 'three/examples/jsm/csm/CSM.js'
 import * as exrLoader from 'three/examples/jsm/loaders/EXRLoader.js'
 import { layer } from '..'
+import { dt } from '../constant'
 import { texture } from '../texture'
 import { CameraControls } from './../CameraControls'
 import { bodyInterface, createBody, jolt, quatToThree, vec3ToJolt, vec3ToThree } from './../jolt'
@@ -40,7 +41,7 @@ export class DemoScene extends Scene {
     envMap!: Texture
     input = {}
     objects: RbObject[] = []
-    camera = new PerspectiveCamera(90, 1, 0.1, 100)
+    camera = new PerspectiveCamera(90, 1, 0.001, 100)
     controls!: CameraControls
     csm!: CSM.CSM
     ballCountLimit = 1024
@@ -68,7 +69,7 @@ export class DemoScene extends Scene {
         super.add(directionalLight)
 
         const cameraTarget = new Vector3(0, 0, 0)
-        this.camera.position.copy(new Vector3(3, 3, -0.5).multiplyScalar(1).add(cameraTarget))
+        this.camera.position.copy(new Vector3(-0.5, 3, 6).multiplyScalar(1).add(cameraTarget))
         super.add(this.camera)
 
         this.controls = new CameraControls(this.camera, cameraTarget, this.canvas)
@@ -90,7 +91,7 @@ export class DemoScene extends Scene {
         const colorWall = '#888888'
         // floor + 4 walls
         ;[
-            { box: new Vector3(25, 0.1, 25), pos: new Vector3(0, 0, 0), color: colorFloor },
+            { box: new Vector3(50, 0.2, 50), pos: new Vector3(0, -0.1, 0), color: colorFloor },
             { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, 2.5), color: colorWall },
             { box: new Vector3(5, 1, 0.1), pos: new Vector3(0, 0.5, -2.5), color: colorWall },
             { box: new Vector3(0.1, 1, 5), pos: new Vector3(2.5, 0.5, 0), color: colorWall },
@@ -126,16 +127,19 @@ export class DemoScene extends Scene {
         this.balls.setColorAt(index, new Color().setHSL(Math.random(), 1, 0.2))
         this.balls.instanceColor!.needsUpdate = true
 
-        const ballRb = createBody(ball, new jolt.SphereShape(0.15), true)
+        const shape = new jolt.SphereShape((this.balls.geometry as SphereGeometry).parameters.radius)
+        shape.SetDensity(0.5e3)
+        const ballRb = createBody(ball, shape, true)
         ballRb.SetRestitution(0.6)
-        ballRb.GetMotionProperties().SetLinearDamping(1)
+        ballRb.GetMotionProperties().SetLinearDamping(0.5)
+        ballRb.GetMotionProperties().SetAngularDamping(0.1)
 
         this.objects.push({ object: this.balls, rb: { id: ballRb.GetID(), index } })
         this.ballCount++
     }
 
     update() {
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 8; i++) {
             if (this.ballCount < this.ballCountLimit) {
                 this.addBall(
                     new Vector3(0, 4, 0).add(
@@ -145,15 +149,17 @@ export class DemoScene extends Scene {
             }
             if (this.ballCount === this.ballCountLimit - 1) {
                 // finish him!
-                const boxBounds = new Vector3(1, 1, 1)
+                const boxBounds = new Vector3(2, 2, 2)
                 const megaBox = new Mesh(
                     new BoxGeometry(...boxBounds),
-                    new MeshStandardMaterial({ map: texture.grid, color: new Color().setHSL(0.1, 1, 0.2) })
+                    new MeshStandardMaterial({ map: texture.grid, color: new Color().setHSL(0.6, 1, 0.1) })
                 )
-                megaBox.position.copy(new Vector3(0, 10, 0))
-                const megaBoxShape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
-                megaBoxShape.SetDensity(5e3)
-                const megaBoxRb = createBody(megaBox, megaBoxShape, true)
+                megaBox.position.copy(new Vector3(0, 10, -10))
+                const shape = new jolt.BoxShape(vec3ToJolt(boxBounds.clone().divideScalar(2)))
+                shape.SetDensity(2e3)
+                const megaBoxRb = createBody(megaBox, shape, true)
+                bodyInterface.AddAngularImpulse(megaBoxRb.GetID(), vec3ToJolt(new Vector3(-500 / dt, 0, 0)))
+                bodyInterface.AddImpulse(megaBoxRb.GetID(), vec3ToJolt(new Vector3(0, 0, 2e3 / dt)))
                 this.objects.push({ object: megaBox, rb: { id: megaBoxRb.GetID() } })
                 this.add(megaBox)
             }

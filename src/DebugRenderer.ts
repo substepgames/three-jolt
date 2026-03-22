@@ -2,7 +2,7 @@ import { AxesHelper, Color, DynamicDrawUsage, Group, InstancedMesh, Matrix4, Mes
 import { layer, scene } from '.'
 import { bodyInterface, jolt, physicsSystem, quatToThree, shapeGeometry, shapeScale, vec3ToThree } from './jolt'
 
-const shapeBodyLimit = 2048
+const shapeBodyLimit = 1024
 
 export class DebugRenderer {
     debugMeshes: Record<number, Group> = {}
@@ -25,7 +25,7 @@ export class DebugRenderer {
             const quat = quatToThree(bodyInterface.GetRotation(id))
 
             const scale = shapeScale(shape)
-            const shapeId = `${shape.GetType()}/${shape.GetSubType()}/${shape.GetVolume()}/${scale.toArray()}`
+            const shapeId = `${shape.GetType()}/${shape.GetSubType()}`
             let instance = this.shapes[shapeId]
             if (!instance) {
                 instance = new InstancedMesh(
@@ -52,7 +52,7 @@ export class DebugRenderer {
                 object = new Group()
                 object.layers.set(layer.debug)
 
-                const axesHelper = new AxesHelper(0.1)
+                const axesHelper = new AxesHelper(0.2)
                 object.add(axesHelper)
 
                 object.children.forEach(c => (c.layers = object.layers))
