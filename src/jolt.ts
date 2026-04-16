@@ -1,5 +1,5 @@
 import type Jolt from 'jolt-physics'
-import initJolt from 'jolt-physics/wasm-multithread'
+import initJolt from 'jolt-physics/wasm'
 import { BoxGeometry, BufferAttribute, BufferGeometry, Object3D, Quaternion, SphereGeometry, Vector3 } from 'three'
 import { gravity } from './constant'
 import { JoltDebugModule } from './jolt-debug'
@@ -54,8 +54,8 @@ export const initPhysics = async () => {
     // physicsSettings.mDeterministicSimulation = false
     // physicsSettings.mNumPositionSteps = 1
     // physicsSettings.mNumVelocitySteps = 1
-    // physicsSettings.mPointVelocitySleepThreshold = 0.05
-    // physicsSettings.mTimeBeforeSleep = 0.1
+    physicsSettings.mPointVelocitySleepThreshold = 0.05
+    physicsSettings.mTimeBeforeSleep = 0.1
     physicsSystem.SetGravity(vec3ToJolt(gravity))
     bodyInterface = physicsSystem.GetBodyInterface()
 

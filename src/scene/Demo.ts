@@ -44,7 +44,7 @@ export class DemoScene extends Scene {
     camera = new PerspectiveCamera(90, 1, 0.001, 100)
     controls!: CameraControls
     csm!: CSM.CSM
-    ballCountLimit = 1024
+    ballCountLimit = 512
     balls!: InstancedMesh
     ballCount: number = 0
 
